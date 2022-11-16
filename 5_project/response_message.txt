@@ -1,0 +1,20 @@
+
+HTTP/1.1 200 OK
+
+Bdpagetype: 1
+Bdqid: 0x9b1b445b0000e21b
+Cache-Control: private
+Connection: keep-alive
+Content-Encoding: gzip
+Content-Type: text/html;charset=utf-8
+Date: Thu, 01 Sep 2022 12:39:21 GMT
+Expires: Thu, 01 Sep 2022 12:38:26 GMT
+Server: BWS/1.1
+Set-Cookie: BDSVRTM=0; path=/
+Set-Cookie: BD_HOME=1; path=/
+Set-Cookie: H_PS_PSSID=36554_36626_36884_37272_36570_37075_37136_26350_37210_37201_37226; path=/; domain=.baidu.com
+Strict-Transport-Security: max-age=172800
+Traceid: 1662035961033871924211176602057882788379
+Transfer-Encoding: chunked
+X-Frame-Options: sameorigin
+X-Ua-Compatible: IE=Edge,chrome=1
