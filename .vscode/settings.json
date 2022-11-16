@@ -1,0 +1,16 @@
+{
+    "files.associations": {
+        "unistd.h": "c",
+        "string_view": "c",
+        "fcntl.h": "c",
+        "time.h": "c",
+        "stdio.h": "c",
+        "inet.h": "c",
+        "exception": "cpp",
+        "cstdio": "cpp",
+        "signal.h": "c",
+        "string.h": "c",
+        "poll.h": "c"
+    },
+    "C_Cpp.dimInactiveRegions": false
+}
