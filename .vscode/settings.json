@@ -10,7 +10,8 @@
         "cstdio": "cpp",
         "signal.h": "c",
         "string.h": "c",
-        "poll.h": "c"
+        "poll.h": "c",
+        "iostream": "cpp"
     },
     "C_Cpp.dimInactiveRegions": false
 }
