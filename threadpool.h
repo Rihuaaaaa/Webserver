@@ -22,17 +22,15 @@ private:
 
 private:    
     int m_thread_number;  //线程的数量
-
     pthread_t *m_threads;    //线程池数组，大小为m_thread_number
     std::list<T*>m_work_queue;        //请求队列
-
     int m_max_requests;    //请求队列中最多允许的等待处理的请求数量
+    bool m_stop;    //是否结束线程
 
-    locker m_queue_locker;  //互斥锁  因为工作队列是所有线程共享的
-
+    locker m_queue_locker;      //互斥锁  因为工作队列是所有线程共享的
     semaphore m_queue_semstat;  //信号量用来判断是否有任务需要处理
 
-    bool m_stop;    //是否结束线程
+    
 };
 
 
@@ -44,7 +42,7 @@ threadpool<T>::threadpool(int thread_number , int max_requests):m_thread_number(
             throw std::exception();
         }
 
-        m_threads = new pthread_t[m_thread_number];
+        m_threads = new pthread_t[m_thread_number];     // 为线程ID数组分配内存，用于存储每个线程的线程ID。
 
         for(int i = 0 ; i<thread_number ; i++)      //创建thread_number个线程，并将他们设置成线程脱离
         {
@@ -73,8 +71,6 @@ threadpool<T>::~threadpool(){
 }
 
 
-
-
 //添加任务到请求队列中
 template<class T>       
 bool threadpool<T>::append(T* request){
@@ -100,7 +96,7 @@ bool threadpool<T>::append(T* request){
 template<class T>
 void* threadpool<T>::myworker(void *arg){   //4 静态的成员函数不能够访问非静态的成员变量，改变一下pthread_creat()的第四个参数，将this作为参数传递到myworker,这样子就能拿到线程池类的对象
 
-    threadpool * pool = (threadpool*)arg;               //this拿到threadpool对象
+    threadpool * pool = (threadpool*)arg;               //每一个线程创建了做什么？this拿到threadpool对象执行run函数
     pool->run();        //线程池创建好也要运行，即从工作队列中去取数据
     return pool;
 }
