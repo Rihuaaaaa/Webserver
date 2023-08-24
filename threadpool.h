@@ -71,7 +71,7 @@ threadpool<T>::~threadpool(){
 }
 
 
-//添加任务到请求队列中
+
 template<class T>       
 bool threadpool<T>::append(T* request){
     m_queue_locker.lock();
@@ -81,12 +81,13 @@ bool threadpool<T>::append(T* request){
         return false;
     }
 
-    m_work_queue.push_back(request);
+    m_work_queue.push_back(request);        //添加任务到请求队列中
     m_queue_locker.unlock();
 
-    //队列中增加了一个任务 信号量也增加1 因此信号量是从这里开始初始化为1的   要注意 此处就开始唤醒了线程！！ 对应的是run中的wait()
+    //队列中增加了一个任务 信号量也增加1,因此信号量是从这里开始初始化为1的,改计数器表示的是当前可用的资源数量，即可以同时访问共享资源的线程数目。
+    //要注意 此处就开始唤醒了线程！！ 对应的是run中的wait()
     //信号量的作用也是来判断任务是否需要被处理
-    m_queue_semstat.post();        //信号量加1  通知线程进行消费(唤醒)
+    m_queue_semstat.post();        //信号量加1，通知线程进行消费(唤醒)
    
     return true;
 

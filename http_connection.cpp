@@ -26,7 +26,7 @@ void setnonblocking(int fd){
 }
 
 
-// main-2 向epoll中添加需要监听的文件描述符
+// 向epoll中添加需要监听的文件描述符
 void addfd(int epoll_fd, int fd , bool one_shot){
     struct epoll_event event;
     event.data.fd = fd ;
@@ -43,13 +43,13 @@ void addfd(int epoll_fd, int fd , bool one_shot){
     setnonblocking(fd);
 }   
 
-// main-3 从epoll中移除需要监听的文件描述符
+// 从epoll中移除需要监听的文件描述符
 void removefd (int epoll_fd , int fd){
     epoll_ctl(epoll_fd , EPOLL_CTL_DEL , fd , 0);
     close(fd);
 } 
 
-// main-4 修改epoll文件描述符
+// 修改epoll文件描述符
 void modifyfd(int epoll_fd , int fd , int ev){
     struct epoll_event event;
     event.data.fd = fd;
@@ -57,7 +57,7 @@ void modifyfd(int epoll_fd , int fd , int ev){
     epoll_ctl(epoll_fd , EPOLL_CTL_MOD , fd , &event);
 }
 
-// main-5 初始化新接收的连接 ,在客户端数组users中初始化每一个新连接的客户端信息
+// 初始化新接收的连接 ,在客户端数组users中初始化每一个新连接的客户端信息
 void http_connection::init(int sockfd , const sockaddr_in &addr){
     m_sockfd = sockfd;
     m_address = addr;
@@ -72,7 +72,7 @@ void http_connection::init(int sockfd , const sockaddr_in &addr){
     init();
 }
 
-//main-6 异常事件 关闭连接
+//异常事件 关闭连接
 void http_connection::close_conection(){
     if(m_sockfd != -1)
     {
@@ -102,7 +102,37 @@ void http_connection::init(){
 
 }
 
-//  一次性把所有数据都读出来 proactor模式  非阻塞 (读出来的数据就是 完整的http服务器的请求报文信息) 
+
+
+
+
+
+
+
+
+void http_connection::process(){        
+    
+    //前面main函数已经读到了所有数据，append连接对象进请求队列当中，子线程拿到对应的对象进来此函数，先进行请求解析。
+    HTTP_CODE read_ret =  process_read();     
+
+    if(read_ret == NO_REQUEST)
+    {
+        modifyfd(m_epoll_fd , m_sockfd ,EPOLLIN);
+        return;
+    }
+
+
+    //生成响应
+    bool write_ret = process_write(read_ret);   //响应要根据你读到的结果去响应
+    if(!write_ret)
+    {   
+        close_conection();
+    }
+    modifyfd(m_epoll_fd , m_sockfd ,EPOLLOUT);  //写入完成后更改out事件，向客户端回写
+} 
+
+
+//  一次性把所有数据都读出来 proactor模式  非阻塞 (读出来的数据就是完整的http服务器的请求报文信息) 
 bool http_connection::read(){
     if(m_read_index >= READ_BUFFER_SIZE)
         return false;
@@ -127,70 +157,10 @@ bool http_connection::read(){
         m_read_index += read_bytes;
 
     }
-    printf("reading data : %s\n" , m_read_buf);      //读取到的数据在这里！ m_read_buf
+    printf("reading data : %s\n" , m_read_buf);      //读取到的数据保存在该连接对象的 m_read_buf缓冲区里。
     return true;
 }
 
-
-// 线程池中的工作线程调用，子线程处理的代码，处理HTTP请求的入口函数
-void http_connection::process(){        
-    
-    //解析HTTP请求 其实就是做业务处理，
-    HTTP_CODE read_ret =  process_read();     
-
-    if(read_ret == NO_REQUEST)
-    {
-        modifyfd(m_epoll_fd , m_sockfd ,EPOLLIN);
-        return;
-    }
-
-
-    //生成响应
-    bool write_ret = process_write(read_ret);   //响应要根据你读到的结果去响应
-    if(!write_ret)
-    {   
-        close_conection();
-    }
-    modifyfd(m_epoll_fd , m_sockfd ,EPOLLOUT);
-} 
-
-
-//  解析一行，判断的依据是 \r\n  把所有数据当成是一个数组（包含请求行请求头）
-http_connection::LINE_STATUS http_connection::parse_line(){     
-    char cur;
-    for(; m_checked_index < m_read_index ; m_checked_index++)
-    {
-        cur = m_read_buf[m_checked_index];
-        if( cur == '\r')
-        {
-            if( (m_checked_index + 1)  == m_read_index)
-            {
-                return LINE_OPEN;
-            }
-            else if(m_read_buf[m_checked_index +1] == '\n')
-            {   
-    
-                m_read_buf[m_checked_index++] = '\0';           
-                m_read_buf[m_checked_index++] ='\0';                    //   GET / HTTP/1.1\r\n  ->  GET / HTTP/1.1\0\0 
-                return LINE_OK;     //表示完整的解析到了一行
-            }
-            return LINE_BAD;
-        }
-        else if(cur == '\n')
-        {
-            if( (m_checked_index > 1) && (m_read_buf[m_checked_index-1] == '\r') )
-            {
-                m_read_buf[m_checked_index -1 ] = '\0';
-                m_read_buf[m_checked_index++] = '\0';
-                return LINE_OK;
-            }
-            return LINE_BAD;
-        }
-
-        //return LINE_OPEN;
-    }
-    return LINE_OK;
-}
 
 // 主状态机 解析HTTP请求
 http_connection::HTTP_CODE http_connection::process_read(){     
@@ -229,7 +199,7 @@ http_connection::HTTP_CODE http_connection::process_read(){
                 }
                 else if(res == GET_REQUEST)
                 {
-                    return do_request();           // 
+                    return do_request();           
                 }
             }
             case CHECK_STATE_CONTENT:           //请求体
@@ -252,6 +222,208 @@ http_connection::HTTP_CODE http_connection::process_read(){
     }
     return NO_REQUEST;      //整个主状态机的状态
 
+}
+
+
+
+
+
+//得到一个完整的正确的HTTP请求时,分析目标文件的属性(m_url), 
+// 如果目标文件存在、对所有用户可读，且不是目录，则使用mmap将其映射到内存地址m_file_address处，
+// 并告诉调用者获取文件成功，我们得到了m_url,然后要在服务器找到这个资源，把数据写给客户端
+//其实这个函数的用意就是你完整的解析完了客户端的请求，需要do_request进行响应客户端
+http_connection::HTTP_CODE http_connection::do_request(){   
+    
+    strcpy( m_real_file, doc_root );    // doc_root 就是资源的路径"/home/hua/Myproject/5_project/resources" ，函数目的是把doc_root拷贝到 m_real_file
+    int len = strlen( doc_root );
+    strncpy( m_real_file + len, m_url, FILENAME_LEN - len - 1 );  //再把获取到的m_url拼接上面的路径即会得到 "/home/hua/Myproject/5_project/resources/index.html"
+    
+
+    //1 拼接完成后就是  "/home/hua/Myproject/5_project/resources/index.html"
+    if ( stat( m_real_file, &m_file_stat ) < 0 )      // 获取m_real_file文件的相关的状态信息，-1失败，0成功
+    {   
+        return NO_RESOURCE;
+    }
+
+    if ( ! ( m_file_stat.st_mode & S_IROTH ) )  // 判断访问权限
+    {
+        return FORBIDDEN_REQUEST;
+    }
+
+    if ( S_ISDIR( m_file_stat.st_mode ) )       // 判断是否是目录
+    {
+        return BAD_REQUEST;
+    }
+
+    //2 用open函数打开拼接好的路径的文件 (该文件是存储在服务器上的， 是客户端请求的文件) ，拿到该文件的FD
+    int fd = open( m_real_file, O_RDONLY );
+    
+    //3 创建内存映射，第四个参数传入拿到的FD，文件映射到内存后会返回一个地址，地址就是服务器需要响应回去的资源 ，这个地址是预备给响应请求时回写数据用到的。
+    m_file_address = ( char* )mmap( 0, m_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0 );    //把我们要发送的数据利用mmap内存映射函数映射到内存中，用 m_file_adress接收
+    close( fd );
+    return FILE_REQUEST;
+}
+
+
+
+
+// 根据服务器处理HTTP请求的结果，决定返回给客户端的内容
+bool http_connection::process_write(HTTP_CODE ret) {
+    switch (ret)
+    {
+        case INTERNAL_ERROR:
+            add_status_line( 500, error_500_title );
+            add_headers( strlen( error_500_form ) );
+            if ( ! add_content( error_500_form ) ) {
+                return false;
+            }
+            break;
+        case BAD_REQUEST:
+            add_status_line( 400, error_400_title );        
+            add_headers( strlen( error_400_form ) );
+            if ( ! add_content( error_400_form ) ) {
+                return false;
+            }
+            break;
+        case NO_RESOURCE:
+            add_status_line( 404, error_404_title );            //生成响应首行   
+            add_headers( strlen( error_404_form ) );            //响应头
+            if ( ! add_content( error_404_form ) ) {            //响应体
+                return false;
+            }
+            break;
+        case FORBIDDEN_REQUEST:
+            add_status_line( 403, error_403_title );
+            add_headers(strlen( error_403_form));
+            if ( ! add_content( error_403_form ) ) {
+                return false;
+            }
+            break;
+        case FILE_REQUEST:                                          //////最后成功响应的报文 全部数据！！！ 
+            add_status_line(200, ok_200_title );
+            add_headers(m_file_stat.st_size);
+            m_iv[ 0 ].iov_base = m_write_buf;
+            m_iv[ 0 ].iov_len = m_write_idx;
+            m_iv[ 1 ].iov_base = m_file_address;
+            m_iv[ 1 ].iov_len = m_file_stat.st_size;
+            m_iv_count = 2;
+            bytes_to_send = m_write_idx + m_file_stat.st_size;
+            return true;
+
+            /*补充一下，通过使用 iovec 结构和 m_iv 数组，可以在一次操作中同时传递多个缓冲区，
+            从而减少了多次读写的开销，提高了性能。在这段代码中，m_iv 数组的使用是为了将响应内容和
+            文件内容同时发送给客户端。*/
+        default:
+            return false;
+    }
+
+    m_iv[ 0 ].iov_base = m_write_buf;
+    m_iv[ 0 ].iov_len = m_write_idx;
+    m_iv_count = 1;
+    return true;
+}
+
+
+//  一次性把所有数据都写好 proactor模式   非阻塞 写HTTP响应
+bool http_connection::write()
+{
+    int temp = 0;
+    
+    if ( bytes_to_send == 0 ) {
+        // 将要发送的字节为0，这一次响应结束。
+        modifyfd( m_epoll_fd, m_sockfd, EPOLLIN ); 
+        init();
+        return true;
+    }
+
+    while(1) {
+   
+        temp = writev(m_sockfd, m_iv, m_iv_count);           // 分散写
+        if ( temp <= -1 ) {
+            // 如果TCP写缓冲没有空间，则等待下一轮EPOLLOUT事件，虽然在此期间，
+            // 服务器无法立即接收到同一客户的下一个请求，但可以保证连接的完整性。
+            if( errno == EAGAIN ) {
+                modifyfd( m_epoll_fd, m_sockfd, EPOLLOUT );
+                return true;
+            }
+            unmap();
+            return false;
+        }
+        
+        bytes_to_send -= temp;
+        bytes_have_send += temp;
+        if (bytes_have_send >= m_iv[0].iov_len)
+        {
+            m_iv[0].iov_len = 0;
+            m_iv[1].iov_base = m_file_address + (bytes_have_send - m_write_idx);
+            m_iv[1].iov_len = bytes_to_send;
+        }
+        else
+        {
+            m_iv[0].iov_base = m_write_buf + bytes_have_send;
+            m_iv[0].iov_len = m_iv[0].iov_len - temp;
+        }
+        if (bytes_to_send <= 0)
+        {
+            // 没有数据要发送了
+            unmap();
+            modifyfd(m_epoll_fd, m_sockfd, EPOLLIN);
+            if (m_linger)
+            {
+                init();
+                return true;
+            }
+            else
+            {
+                return false;
+            } 
+        }
+    }
+}
+
+
+
+
+
+
+
+///////////////////////////////////////解析HTTP请求几个小函数
+
+//  解析一行，判断的依据是 \r\n  把所有数据当成是一个数组（包含请求行请求头）
+http_connection::LINE_STATUS http_connection::parse_line(){     
+    char cur;
+    for(; m_checked_index < m_read_index ; m_checked_index++)
+    {
+        cur = m_read_buf[m_checked_index];
+        if( cur == '\r')
+        {
+            if( (m_checked_index + 1)  == m_read_index)
+            {
+                return LINE_OPEN;
+            }
+            else if(m_read_buf[m_checked_index +1] == '\n')
+            {   
+    
+                m_read_buf[m_checked_index++] = '\0';           
+                m_read_buf[m_checked_index++] ='\0';                    //   GET / HTTP/1.1\r\n  ->  GET / HTTP/1.1\0\0 
+                return LINE_OK;     //表示完整的解析到了一行
+            }
+            return LINE_BAD;
+        }
+        else if(cur == '\n')
+        {
+            if( (m_checked_index > 1) && (m_read_buf[m_checked_index-1] == '\r') )
+            {
+                m_read_buf[m_checked_index -1 ] = '\0';
+                m_read_buf[m_checked_index++] = '\0';
+                return LINE_OK;
+            }
+            return LINE_BAD;
+        }
+
+        //return LINE_OPEN;
+    }
+    return LINE_OK;
 }
 
 // 解析HTTP请求行,获取请求方法,目标URL,HTTP版本 主要是要得到三个信息
@@ -364,112 +536,7 @@ http_connection::HTTP_CODE http_connection::parse_content(char *text){
 
 
 
-//得到一个完整的正确的HTTP请求时,分析目标文件的属性(m_url), 
-// 如果目标文件存在、对所有用户可读，且不是目录，则使用mmap将其映射到内存地址m_file_address处，
-// 并告诉调用者获取文件成功，我们得到了m_url,然后要在服务器找到这个资源，把数据写给客户端
-//其实这个函数的用意就是你完整的解析完了客户端的请求，需要do_request进行响应客户端
-http_connection::HTTP_CODE http_connection::do_request(){   
-    
-    strcpy( m_real_file, doc_root );    // doc_root 就是资源的路径"/home/hua/Myproject/5_project/resources" ，函数目的是把doc_root拷贝到 m_real_file
-    int len = strlen( doc_root );
-    strncpy( m_real_file + len, m_url, FILENAME_LEN - len - 1 );  //再把获取到的m_url拼接上面的路径即会得到 "/home/hua/Myproject/5_project/resources/index.html"
-    
-
-    //1 拼接完成后就是  "/home/hua/Myproject/5_project/resources/index.html"
-    if ( stat( m_real_file, &m_file_stat ) < 0 )      // 获取m_real_file文件的相关的状态信息，-1失败，0成功
-    {   
-        return NO_RESOURCE;
-    }
-
-    if ( ! ( m_file_stat.st_mode & S_IROTH ) )  // 判断访问权限
-    {
-        return FORBIDDEN_REQUEST;
-    }
-
-    if ( S_ISDIR( m_file_stat.st_mode ) )       // 判断是否是目录
-    {
-        return BAD_REQUEST;
-    }
-
-    //2 用open函数打开拼接好的路径的文件 (该文件是存储在服务器上的， 是客户端请求的文件) ，拿到该文件的FD
-    int fd = open( m_real_file, O_RDONLY );
-    
-    //3 创建内存映射，第四个参数传入拿到的FD，文件映射到内存后会返回一个地址，地址就是服务器需要响应回去的资源 ，这个地址是预备给响应请求时回写数据用到的。
-    m_file_address = ( char* )mmap( 0, m_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0 );    //把我们要发送的数据利用mmap内存映射函数映射到内存中，用 m_file_adress接收
-    close( fd );
-    return FILE_REQUEST;
-}
-
-//  用到了内存映射函数 ，就要释放内存映射，此函数专门用于释放内存映射 munmap()操作 
-void http_connection::unmap() {
-    if( m_file_address )
-    {
-        munmap( m_file_address, m_file_stat.st_size );
-        m_file_address = 0;
-    }
-}
-
-
-///上面是 处理HTTP请求
-///////////////////////////////////////
-///////////////////////////////////////
-///下面是  响应HTTP请求
-
-
-
-
-// 根据服务器处理HTTP请求的结果，决定返回给客户端的内容
-bool http_connection::process_write(HTTP_CODE ret) {
-    switch (ret)
-    {
-        case INTERNAL_ERROR:
-            add_status_line( 500, error_500_title );
-            add_headers( strlen( error_500_form ) );
-            if ( ! add_content( error_500_form ) ) {
-                return false;
-            }
-            break;
-        case BAD_REQUEST:
-            add_status_line( 400, error_400_title );        
-            add_headers( strlen( error_400_form ) );
-            if ( ! add_content( error_400_form ) ) {
-                return false;
-            }
-            break;
-        case NO_RESOURCE:
-            add_status_line( 404, error_404_title );            //生成响应首行   
-            add_headers( strlen( error_404_form ) );            //响应头
-            if ( ! add_content( error_404_form ) ) {            //响应体
-                return false;
-            }
-            break;
-        case FORBIDDEN_REQUEST:
-            add_status_line( 403, error_403_title );
-            add_headers(strlen( error_403_form));
-            if ( ! add_content( error_403_form ) ) {
-                return false;
-            }
-            break;
-        case FILE_REQUEST:                                          //////最后成功响应的报文 全部数据！！！ 
-            add_status_line(200, ok_200_title );
-            add_headers(m_file_stat.st_size);
-            m_iv[ 0 ].iov_base = m_write_buf;
-            m_iv[ 0 ].iov_len = m_write_idx;
-            m_iv[ 1 ].iov_base = m_file_address;
-            m_iv[ 1 ].iov_len = m_file_stat.st_size;
-            m_iv_count = 2;
-            bytes_to_send = m_write_idx + m_file_stat.st_size;
-            return true;
-        default:
-            return false;
-    }
-
-    m_iv[ 0 ].iov_base = m_write_buf;
-    m_iv[ 0 ].iov_len = m_write_idx;
-    m_iv_count = 1;
-    return true;
-}
-
+///////////////////////////////////////响应HTTP请求几个小函数
 
 //响应首行
 bool http_connection::add_status_line( int status, const char* title ) {
@@ -523,64 +590,14 @@ bool http_connection::add_content_type() {
     return add_response("Content-Type:%s\r\n", "text/html");
 }
 
-
-//  一次性把所有数据都写好 proactor模式   非阻塞 写HTTP响应
-bool http_connection::write()
-{
-    int temp = 0;
-    
-    if ( bytes_to_send == 0 ) {
-        // 将要发送的字节为0，这一次响应结束。
-        modifyfd( m_epoll_fd, m_sockfd, EPOLLIN ); 
-        init();
-        return true;
-    }
-
-    while(1) {
-   
-        temp = writev(m_sockfd, m_iv, m_iv_count);           // 分散写
-        if ( temp <= -1 ) {
-            // 如果TCP写缓冲没有空间，则等待下一轮EPOLLOUT事件，虽然在此期间，
-            // 服务器无法立即接收到同一客户的下一个请求，但可以保证连接的完整性。
-            if( errno == EAGAIN ) {
-                modifyfd( m_epoll_fd, m_sockfd, EPOLLOUT );
-                return true;
-            }
-            unmap();
-            return false;
-        }
-        
-        bytes_to_send -= temp;
-        bytes_have_send += temp;
-        if (bytes_have_send >= m_iv[0].iov_len)
-        {
-            m_iv[0].iov_len = 0;
-            m_iv[1].iov_base = m_file_address + (bytes_have_send - m_write_idx);
-            m_iv[1].iov_len = bytes_to_send;
-        }
-        else
-        {
-            m_iv[0].iov_base = m_write_buf + bytes_have_send;
-            m_iv[0].iov_len = m_iv[0].iov_len - temp;
-        }
-        if (bytes_to_send <= 0)
-        {
-            // 没有数据要发送了
-            unmap();
-            modifyfd(m_epoll_fd, m_sockfd, EPOLLIN);
-            if (m_linger)
-            {
-                init();
-                return true;
-            }
-            else
-            {
-                return false;
-            } 
-        }
+//  用到了内存映射函数 ，就要释放内存映射，此函数专门用于释放内存映射 munmap()操作 
+void http_connection::unmap() {
+    if( m_file_address )
+    {
+        munmap( m_file_address, m_file_stat.st_size );
+        m_file_address = 0;
     }
 }
-
 
 
 

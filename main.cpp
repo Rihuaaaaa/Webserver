@@ -14,7 +14,7 @@
 #define MAX_FD 65535        //最大文件描述符个数
 #define  MAX_EVENT_NUMBER 10000 //监听的最大事件数量
 
-//1 添加信号捕捉
+// 添加信号捕捉
 void addsig(int sig , void(handler)(int)){
     struct sigaction sa;        //注册信号
     memset(&sa , '\0' , sizeof(sa));      //清空作用，将sa内都置为空 ；memset是一个初始化函数，作用是将某一块内存中的全部设置为指定的值。
@@ -24,13 +24,13 @@ void addsig(int sig , void(handler)(int)){
 
 }
 
-//2 封装向epoll中添加需要监听的文件描述符
-extern void addfd(int epoll_fd, int fd , bool one_shot);      //extern关键字告诉编译器num这个变量是存在的，但是不是在这之前声明的，你到别的地方找找吧,引用不在同一个文件中的变量或者函数。也就是说只有当一个变量是一个全局变量时，extern变量才会起作用
+// 封装向epoll中添加需要监听的文件描述符
+extern void addfd(int epoll_fd, int fd , bool one_shot);      //extern关键字告诉编译器这个变量是存在的，但是不是在这之前声明的，你到别的地方找找吧,引用不在同一个文件中的变量或者函数。也就是说只有当一个变量是一个全局变量时，extern变量才会起作用
 
-//3 封装从epoll删除文件描述符
+// 封装从epoll删除文件描述符
 extern void removefd (int epoll_fd , int fd);
  
-//4 封装修改epoll文件描述符
+// 封装修改epoll文件描述符
 extern void modify(int epoll_fd , int fd , int ev);
 
 int main(int argc , char * argv[]){     
@@ -58,11 +58,12 @@ int main(int argc , char * argv[]){
         exit(-1);
     }
 
-
-    //创建数组用于保存所有客户端信息
+    //创建数组用于保存所有客户端信息(客户端数组，用来保存客户端连接进来的对应的各个fd)
     http_connection *users = new http_connection[MAX_FD];
+
+
     
-    // 开始编写网络代码
+    //开始编写socket
     int listen_fd = socket(PF_INET , SOCK_STREAM , 0);
 
     // 设置端口复用(注意要在绑定之前设置)
@@ -97,7 +98,7 @@ int main(int argc , char * argv[]){
             break;
         }
 
-        for(int i = 0 ; i<num ; i++)        //遍历events事件数组，检测有无发生变化的文件描述符
+        for(int i = 0 ; i<num ; i++)    //遍历events事件数组，检测有无发生变化的文件描述符
         {
             int cur_sockfd = events[i].data.fd;     //当前发生事件变化的文件描述符
 
@@ -109,17 +110,17 @@ int main(int argc , char * argv[]){
 
                 if(http_connection::m_user_count >= MAX_FD)     //连接数满
                 {   
-                    close(connect_fd);  //给客户端写一个信息，服务器内部正忙
+                    close(connect_fd);  
                     continue;
                 }
 
-                users[connect_fd].init(connect_fd , client_address);  // 将新客户的数据初始化，放到数组中 ，数组中保存每一个连接进来客户端的 文件描述符信息和地址信息
+                /*将连接进来的客户端对应在客户端连接数组中的fd进行初始化(init),init函数还需要执行epoll监听加入事件，以便对该fd后面的读写事件监听*/
+                users[connect_fd].init(connect_fd , client_address);  
             }       
             else if(events[i].events &(EPOLLRDHUP | EPOLLHUP | EPOLLERR))    //对方异常断开等错误事件
             {
-                users[cur_sockfd].close_conection();            //6 异常断开函数
+                users[cur_sockfd].close_conection();         
             }
-
             else if(events[i].events & EPOLLIN)     //表示检测到了读事件描述符发生变化 ，对读事件描述符进行读操作
             {
                 if( users[cur_sockfd].read())   // 一次性把所有数据都读出来 proactor模式

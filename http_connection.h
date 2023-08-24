@@ -23,18 +23,18 @@ class http_connection
     
 public:
 
-    static int m_epoll_fd; //  1 所有socket事件都被注册到同一个epoll对象中 static共享
-    static int m_user_count ;  //2 统计用户数量
+    static int m_epoll_fd; //  所有socket事件都被注册到同一个epoll对象中 static共享
+    static int m_user_count ;  // 统计用户数量
 
     static const int FILENAME_LEN = 200;        // 文件名的最大长度
 
-    static const int READ_BUFFER_SIZE = 2048;   // 5 读缓冲区大小
-    static const int WRITE_BUFFER_SIZE = 2048;  //6 写缓冲区大小
+    static const int READ_BUFFER_SIZE = 2048;   // 读缓冲区大小
+    static const int WRITE_BUFFER_SIZE = 2048;  // 写缓冲区大小
     bool read();    //非阻塞的读
     bool write();   //非阻塞的写
 
 
-    /* 9 定义各种状态 */
+    /*  定义各种状态 */
     enum METHOD { GET = 0 ,POST , HEAD , PUT , DELETE , OPTION , CONNECT};
 
     /*
@@ -53,7 +53,7 @@ public:
     /*
         服务器处理HTTP请求的可能结果，报文解析的结果
         NO_REQUEST          :   请求不完整，需要继续读取客户数据
-        GET_REQUEST         :   表示获得了一个完成的客户请求
+        GET_REQUEST         :   表示获得了一个完整的的客户请求
         BAD_REQUEST         :   表示客户请求语法错误
         NO_RESOURCE         :   表示服务器没有资源
         FORBIDDEN_REQUEST   :   表示客户对资源没有足够的访问权限
@@ -79,7 +79,7 @@ public:
     void close_conection(); //关闭连接
 
     
-    /* 9 下面这一组函数被process_read调用以分析HTTP请求 */
+    /* 下面这一组函数被process_read调用以分析HTTP请求 */
     HTTP_CODE process_read();   //解析HTTP请求 (主状态机)
     HTTP_CODE parse_request_line(char *text);   // (主状态机) - 解析请求首行
     HTTP_CODE parse_headers(char *text);   //(主状态机) - 解析请求头
@@ -88,7 +88,7 @@ public:
     HTTP_CODE do_request();    
 
 
-    /* 24 这一组函数被process_write调用以填充HTTP应答*/
+    /* 这一组函数被process_write调用以填充HTTP应答*/
     void unmap();
     bool add_response( const char* format, ... );
     bool add_content( const char* content );
@@ -102,28 +102,28 @@ public:
 
 private:
     
-    int m_sockfd ;      //3 该HTTP连接的socket
-    sockaddr_in m_address;  // 4 通信的socket地址
+    int m_sockfd ;      //该HTTP连接的socket
+    sockaddr_in m_address;  // 通信的socket地址
 
-    char m_read_buf[READ_BUFFER_SIZE];  // 7 读缓冲区
-    int  m_read_index;                  // 8 标识读缓冲区中已经读入的客户端数据的最后一个字节的下一个位置
+    char m_read_buf[READ_BUFFER_SIZE];  // 读缓冲区
+    int  m_read_index;                  // 标识读缓冲区中已经读入的客户端数据的最后一个字节的下一个位置
 
-    int m_checked_index ;  //10 当前正在分析的字符在都读缓冲区的位置
-    int m_start_line ; //11 当前正在解析行的起始位置
+    int m_checked_index ;  // 当前正在分析的字符在都读缓冲区的位置
+    int m_start_line ; // 当前正在解析行的起始位置
     CHECK_STATE m_check_state; //12 主状态机当前所处的状态,再定义一个init()初始化这三个成员
-    void init();    //13 初始化连接其余的信息
+    void init();    // 初始化连接其余的信息
 
-    char * get_line(){return m_read_buf + m_start_line;}        //14  内联函数get_line()
+    char * get_line(){return m_read_buf + m_start_line;}        //  内联函数get_line()
 
     //请求首行的成员
-    char *m_url; //16 请求目标文件的文件名    -每一个客户端任务对应的资源都是不一样的，因此设置为成员变量
-    char *m_version;    //17 协议版本 只支持 HTTP1.1
-    METHOD m_method;    //18 请求方法   - 在init()追加初始化这三个成员
+    char *m_url; // 请求目标文件的文件名    -每一个客户端任务对应的资源都是不一样的，因此设置为成员变量
+    char *m_version;    // 协议版本 只支持 HTTP1.1
+    METHOD m_method;    // 请求方法   - 在init()追加初始化这三个成员
 
     //请求头的成员
-    char *m_host;   //19 主机名
-    bool m_linger; //20 判断HTTP请求是否要保持连接 即： Connection: keep-alive
-    int m_content_length;    // 21 HTTP请求的消息总长度
+    char *m_host;   // 主机名
+    bool m_linger; // 判断HTTP请求是否要保持连接 即： Connection: keep-alive
+    int m_content_length;    //  HTTP请求的消息总长度
     
     //服务器资源
     char m_real_file[ FILENAME_LEN ];       //  客户请求的目标文件的完整路径，其内容等于 doc_root + m_url, doc_root是网站根目录
