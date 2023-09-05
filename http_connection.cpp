@@ -5,7 +5,8 @@ int http_connection::m_epoll_fd = -1;
 int http_connection::m_user_count =0;
 
 //网站的根目录(项目的根路径)
-const char* doc_root = "/home/hua/Myproject/5_project/resources";
+const char* doc_root = "/home/hua/Webserver/resources";
+
 
 // 定义HTTP响应的一些状态信息
 const char* ok_200_title = "OK";

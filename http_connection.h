@@ -53,7 +53,7 @@ public:
     /*
         服务器处理HTTP请求的可能结果，报文解析的结果
         NO_REQUEST          :   请求不完整，需要继续读取客户数据
-        GET_REQUEST         :   表示获得了一个完整的的客户请求
+        GET_REQUEST         :   表示获得了一个完整的客户请求
         BAD_REQUEST         :   表示客户请求语法错误
         NO_RESOURCE         :   表示服务器没有资源
         FORBIDDEN_REQUEST   :   表示客户对资源没有足够的访问权限
